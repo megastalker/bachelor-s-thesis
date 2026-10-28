@@ -1,0 +1,19 @@
+{
+    "configurations": [
+        {
+            "name": "MinGW",
+            "compilerPath": "C:/1111/w64devkit/bin/g++.exe",
+            "intelliSenseMode": "windows-gcc-x64",
+            "cppStandard": "c++17",
+            "compileCommands": [
+                "${workspaceFolder}/build/compile_commands.json"
+            ],
+            "includePath": [
+                "${workspaceFolder}/**",
+                "E:/vcpkg/installed/x64-mingw-dynamic/include",
+                "C:/XIMEA/API/xiAPI"
+            ]
+        }
+    ],
+    "version": 4
+}

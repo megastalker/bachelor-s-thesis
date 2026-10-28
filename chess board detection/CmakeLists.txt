@@ -1,0 +1,34 @@
+cmake_minimum_required(VERSION 3.21)
+
+project(ChessBoardDetection LANGUAGES CXX)
+
+# An empty single-configuration build can select an unintended imported DLL.
+if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Build configuration" FORCE)
+endif()
+
+find_package(OpenCV 4.12 CONFIG REQUIRED COMPONENTS core highgui calib3d)
+
+add_executable(chess_board_detection main.cpp)
+
+target_include_directories(chess_board_detection PRIVATE
+    "C:/XIMEA/API/xiAPI"
+)
+
+target_compile_features(chess_board_detection PRIVATE cxx_std_17)
+
+set_target_properties(chess_board_detection PROPERTIES CXX_EXTENSIONS OFF)
+
+target_link_libraries(chess_board_detection PRIVATE
+    opencv_core
+    opencv_highgui
+    opencv_calib3d
+    "C:/XIMEA/API/xiAPI/xiapi64.lib"
+)
+
+# Copy XIMEA DLL next to the executable after building
+add_custom_command(TARGET chess_board_detection POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "C:/XIMEA/API/xiAPI/xiapi64.dll"
+        "$<TARGET_FILE_DIR:chess_board_detection>"
+)

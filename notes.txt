@@ -1,0 +1,162 @@
+# Bachelor Thesis Development Notes
+
+## 2026-10-03 — Development Environment Setup
+
+The initial development environment for the chess position recognition
+system was prepared.
+
+C++ was selected as the main programming language. OpenCV will be used
+for image processing and computer vision tasks.
+
+The project uses CMake as its build system. OpenCV 4.12 was installed
+using the vcpkg package manager with the MinGW x64 toolchain.
+
+A basic CMake project was created and the OpenCV installation was tested
+using a simple program based on `cv::Mat`, `cv::imshow()`, and
+`cv::waitKey()`.
+
+During the initial setup, the application compiled successfully, but
+debugging revealed a crash inside OpenCV's debug AVX2 code during imshow().
+The development configuration now uses RelWithDebInfo and OpenCV release
+libraries. vcpkg also deploys the required DLLs beside the executable.
+
+### Current technologies
+
+- C++17
+- OpenCV 4.12
+- CMake
+- vcpkg
+- MinGW / GCC
+- Git
+
+### Current status
+
+The development environment is working and a basic OpenCV application
+can be successfully compiled and executed.
+
+### Next step
+
+Load a real image of a chessboard using OpenCV and begin experimenting
+with basic image-processing operations.
+
+## Как настраивалось окружение — пояснения и команды
+
+### 1. Что уже было установлено
+
+- CMake: C:/Program Files/CMake/bin (для новых presets нужна версия 3.21+).
+- MinGW из w64devkit: C:/1111/w64devkit, GCC 14.2.0.
+- vcpkg: E:/vcpkg.
+- OpenCV 4.12.0 с triplet x64-mingw-dynamic.
+
+Triplet задаёт вариант библиотек: здесь это 64-битная сборка MinGW
+с динамическими библиотеками DLL. Эти инструменты уже были установлены;
+во время исправления я настраивал проект, а не переустанавливал окружение.
+
+### 2. Как нашли причину
+
+Проверили CMakeLists.txt, старый CMakeCache.txt, команду линковки и DLL.
+В старой сборке CMAKE_BUILD_TYPE был пустым. Фактически подключались
+debug-библиотеки OpenCV с суффиксом d, например libopencv_core4d.dll.
+
+Запустили программу под GDB. Оказалось, что imshow() не зависает:
+внутри преобразования цвета происходит SIGSEGV в AVX2-коде debug-библиотеки
+libopencv_imgproc4d.dll. Инструкция vmovdqa пыталась записать 32 байта
+по адресу стека без необходимого выравнивания на 32 байта.
+Поэтому до waitKey() выполнение не доходило.
+
+Записи сборки показали один и тот же GCC 14.2.0 для OpenCV и приложения.
+Точную первопричину ошибки генерации машинного кода не установили.
+Добавление debug/bin в PATH само по себе этот сбой не исправляет.
+
+### 3. Что изменили в CMake
+
+- Привели имя файла к стандартному CMakeLists.txt.
+- Указали LANGUAGES CXX и требование C++17 для целевой программы.
+- Подключили только необходимые компоненты OpenCV: core и highgui.
+- Использовали импортированные цели opencv_core и opencv_highgui:
+  пути к библиотекам и заголовкам передаёт конфигурация OpenCV.
+- Для обычной одноконфигурационной сборки без указанного типа установили
+  RelWithDebInfo по умолчанию.
+
+В CMakePresets.json зафиксировали генератор MinGW Makefiles, компилятор,
+mingw32-make, triplet и vcpkg toolchain. Toolchain подключается через preset
+до project(), чтобы CMake корректно находил установленные зависимости.
+
+Общие presets:
+- mingw-dev: RelWithDebInfo — оптимизация и отладочные символы приложения.
+- mingw-release: Release — итоговая оптимизированная сборка.
+
+Локальные пути находятся в CMakeUserPresets.json:
+- VCPKG_ROOT = E:/vcpkg
+- MINGW_ROOT = C:/1111/w64devkit
+
+Для этого компьютера созданы local-dev и local-release, которые наследуют
+общие настройки. Их результаты лежат отдельно в build/local-dev
+и build/local-release. Старый exe прямо в build/ больше не используем.
+
+Включили VCPKG_APPLOCAL_DEPS: при сборке vcpkg автоматически копирует
+подходящие DLL и их зависимости рядом с exe. Для проверенной сборки
+глобально добавлять OpenCV debug/bin в PATH больше не требуется.
+main.cpp не меняли, AVX2 и многопоточность не отключали.
+
+### 4. Как работать в VS Code
+
+Открыть папку E:/BP/bachelor's thesis.
+Нужны расширения Microsoft C/C++ и CMake Tools.
+
+Через Ctrl+Shift+P:
+1. CMake: Select Configure Preset → local-dev.
+2. CMake: Build.
+3. CMake: Debug или CMake: Run Without Debugging.
+4. Если предлагается выбрать цель — chess_board_detection.
+
+В .vscode/settings.json задана папка исходников chess board detection,
+включены presets и сборка перед запуском. IntelliSense получает настройки
+от CMake Tools, для отладки используется GDB.
+
+Когда откроется окно OpenCV, переключиться на него и нажать клавишу:
+waitKey(0) по замыслу ожидает нажатия без ограничения времени.
+
+### 5. Те же действия из PowerShell
+
+Перейти в папку проекта:
+Set-Location "E:/BP/bachelor's thesis/chess board detection"
+
+Настроить:
+cmake --preset local-dev
+
+Собрать:
+cmake --build --preset local-dev --parallel
+
+Запустить:
+& ./build/local-dev/chess_board_detection.exe
+
+Для Release заменить local-dev на local-release во всех командах.
+
+### 6. Что проверили и какое ограничение осталось
+
+Оба новых presets успешно настроились и собрались. Программа local-dev
+прошла imshow(), вывела Before waitKey и достигла waitKey().
+Только в проверочном запуске через GDB ожидание сократили до 1 мс:
+waitKey вернул -1, программа завершилась нормально. В исходнике осталось
+waitKey(0). Нажатие клавиши вручную этой проверкой не тестировалось.
+
+RelWithDebInfo использует рабочие release-библиотеки OpenCV и сохраняет
+символы приложения для отладки. Из-за оптимизации некоторые переменные
+могут быть недоступны, а пошаговая отладка — не строго по строкам.
+
+Установленные debug-DLL OpenCV не исправляли. Для полноценной Debug-сборки
+нужно отдельно пересобрать OpenCV с исправленной конфигурацией/компилятором
+и проверить, что ошибка выравнивания исчезла. Простое переключение на Debug
+с текущими библиотеками вернёт исходную проблему.
+
+### 7. Перенос проекта и Git
+
+В Git сохраняются CMakeLists.txt, CMakePresets.json, настройки VS Code
+и CMakeUserPresets.json.example. Папка build/ и CMakeUserPresets.json
+добавлены в .gitignore.
+
+На другом компьютере скопировать CMakeUserPresets.json.example
+в CMakeUserPresets.json и исправить VCPKG_ROOT и MINGW_ROOT.
+OpenCV должен быть установлен под совместимый MinGW toolchain.
+Подробная диагностика также сохранена в chess board detection/README.md.

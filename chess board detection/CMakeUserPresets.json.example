@@ -1,0 +1,27 @@
+{
+    "version": 3,
+    "configurePresets": [
+        {
+            "name": "local-paths",
+            "hidden": true,
+            "environment": {
+                "VCPKG_ROOT": "E:/vcpkg",
+                "MINGW_ROOT": "C:/1111/w64devkit"
+            }
+        },
+        {
+            "name": "local-dev",
+            "displayName": "Local MinGW development (RelWithDebInfo)",
+            "inherits": ["mingw-dev", "local-paths"]
+        },
+        {
+            "name": "local-release",
+            "displayName": "Local MinGW Release",
+            "inherits": ["mingw-release", "local-paths"]
+        }
+    ],
+    "buildPresets": [
+        { "name": "local-dev", "configurePreset": "local-dev" },
+        { "name": "local-release", "configurePreset": "local-release" }
+    ]
+}

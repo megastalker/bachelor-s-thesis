@@ -30,3 +30,7 @@
 *.exe
 *.out
 *.app
+
+# CMake output and developer-specific toolchain paths
+build/
+CMakeUserPresets.json

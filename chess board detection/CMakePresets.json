@@ -1,0 +1,39 @@
+{
+    "version": 3,
+    "cmakeMinimumRequired": { "major": 3, "minor": 21, "patch": 0 },
+    "configurePresets": [
+        {
+            "name": "mingw-base",
+            "hidden": true,
+            "generator": "MinGW Makefiles",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+            "environment": {
+                "PATH": "$env{MINGW_ROOT}/bin;$penv{PATH}"
+            },
+            "cacheVariables": {
+                "CMAKE_CXX_COMPILER": "$env{MINGW_ROOT}/bin/g++.exe",
+                "CMAKE_MAKE_PROGRAM": "$env{MINGW_ROOT}/bin/mingw32-make.exe",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": true,
+                "VCPKG_TARGET_TRIPLET": "x64-mingw-dynamic",
+                "VCPKG_APPLOCAL_DEPS": true
+            }
+        },
+        {
+            "name": "mingw-dev",
+            "displayName": "MinGW development (RelWithDebInfo)",
+            "inherits": "mingw-base",
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "RelWithDebInfo" }
+        },
+        {
+            "name": "mingw-release",
+            "displayName": "MinGW Release",
+            "inherits": "mingw-base",
+            "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+        }
+    ],
+    "buildPresets": [
+        { "name": "mingw-dev", "configurePreset": "mingw-dev" },
+        { "name": "mingw-release", "configurePreset": "mingw-release" }
+    ]
+}
