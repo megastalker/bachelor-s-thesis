@@ -14,13 +14,21 @@
 using namespace std;
 int imageWidth = 2464;
 int imageHeight = 2056;
-
+cv::Mat m;
 class RANSAC_for_chessboard{
     vector<cv::Vec4f> lines;
     vector<cv::Point2f> intersection;
     double threshold;
     double min_line_long = 40;
+    double radius = 15;
     public:
+    struct cluster
+    {
+        cv::Point2f center;
+        int count=0;
+    };
+    vector<cluster> clusters;
+    int min_count=15;
     RANSAC_for_chessboard(vector<cv::Vec4f> &lines, double threshold = 5): lines(lines),threshold(threshold){
         if(threshold < 0)cout<<"error trashold < 0";
     }
@@ -55,6 +63,7 @@ class RANSAC_for_chessboard{
         for(int i = 0;i < lines.size();i++){
             //length[i]=hypot(lines[i][2] - lines[i][0],lines[i][3] - lines[i][1]);
             length[i]= (lines[i][2] - lines[i][0])*(lines[i][2] - lines[i][0])+(lines[i][3] - lines[i][1])*(lines[i][3] - lines[i][1]);
+            if(length[i]<min_line_long*min_line_long)continue;
             angle[i]=atan2(lines[i][3] - lines[i][1],lines[i][2] - lines[i][0]);
             if(angle[i]<0)angle[i]+=CV_PI;
         }
@@ -68,8 +77,44 @@ class RANSAC_for_chessboard{
             }
         }
         cout<<intersection.size();
+        cluster_intersection();
     }
 
+
+    
+    void cluster_intersection(){
+        clusters.clear();
+        for(const auto &p:intersection){
+            if(clusters.empty()){
+                clusters.push_back({p,1});
+                continue;
+            }
+            double mindist = -1;
+            int pos;
+            for(int i = 0;i<clusters.size();i++){
+                double dist = (p.x - clusters[i].center.x)*(p.x - clusters[i].center.x)+(p.y-clusters[i].center.y)*(p.y-clusters[i].center.y);
+                if(dist<radius*radius){
+                    if( mindist == -1 || dist < mindist){
+                        mindist=dist;
+                        pos = i;
+                    }
+                }
+            }
+            if(mindist == -1)clusters.push_back({p,1});
+            else{
+                clusters[pos].center.x = clusters[pos].center.x+(p.x-clusters[pos].center.x)/(clusters[pos].count+1);
+                clusters[pos].center.y = clusters[pos].center.y+(p.y-clusters[pos].center.y)/(clusters[pos].count+1);
+                clusters[pos].count++;
+            }
+            
+        }
+        cout<<" "<<clusters.size();
+
+        for(const auto &c:clusters){
+            if(c.count>=min_count)
+            cv::circle(m,c.center,15,cv::Scalar(255,255,0),-1);
+        }
+    }
 
 
 
@@ -96,8 +141,10 @@ vector<cv::Point2f> detection(cv::Mat input_image){
     );
 }
     RANSAC_for_chessboard r(lines);
+    m = input_image;
     r.find_intersection();
-
+    input_image=m;
+    
     cv::namedWindow("111", cv::WINDOW_NORMAL | cv::WINDOW_GUI_EXPANDED);
     cv::imshow("111",input_image);
     cv::waitKey(0);
