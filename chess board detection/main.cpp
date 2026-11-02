@@ -18,9 +18,14 @@ cv::Mat m;
 class RANSAC_for_chessboard{
     vector<cv::Vec4f> lines;
     vector<cv::Point2f> intersection;
+    vector<cv::Vec4f> linesA;
+    vector<cv::Vec4f> linesB;
     double threshold;
     double min_line_long = 40;
     double radius = 15;
+    int max_angle_for_direction = 5;
+    double max_remoteness_from_angle = 17 *(CV_PI/180);
+    double min_diff_between_top1_top2=40;
     public:
     struct cluster
     {
@@ -28,7 +33,7 @@ class RANSAC_for_chessboard{
         int count=0;
     };
     vector<cluster> clusters;
-    int min_count=15;
+    int min_count=10;
     RANSAC_for_chessboard(vector<cv::Vec4f> &lines, double threshold = 5): lines(lines),threshold(threshold){
         if(threshold < 0)cout<<"error trashold < 0";
     }
@@ -67,13 +72,10 @@ class RANSAC_for_chessboard{
             angle[i]=atan2(lines[i][3] - lines[i][1],lines[i][2] - lines[i][0]);
             if(angle[i]<0)angle[i]+=CV_PI;
         }
-        for(int i = 0;i < lines.size();i++){
-            for(int j = i+1;j < lines.size();j++){
-            if (length[i] < min_line_long*min_line_long || length[j]<min_line_long*min_line_long) continue;
-            double diff = abs(angle[i]-angle[j]);
-            diff = min(diff,CV_PI-diff);
-            if(diff<CV_PI/6)continue;
-                intersect_line(lines[i],lines[j]);
+        find_main_direction(angle,length);
+        for(auto &p1:linesA){
+            for(auto &p2:linesB){
+                intersect_line(p1,p2);
             }
         }
         cout<<intersection.size();
@@ -81,7 +83,55 @@ class RANSAC_for_chessboard{
     }
 
 
-    
+    void find_main_direction(const vector<double> &angles,const vector<double> &length){
+        linesA.clear();
+        linesB.clear();
+        vector<double> index(180);
+        for(int i = 0;i<angles.size();i++){
+            if(length[i]<min_line_long*min_line_long)continue;
+            index[int(angles[i]*double(index.size())/CV_PI)]+=length[i];
+        }
+        vector<double> sum_index(180);
+        for(int i = 0;i<index.size();i++){
+            for(int j = -max_angle_for_direction+i;j<=max_angle_for_direction+i;j++){
+                sum_index[i]+=index[(j+180)%180];
+            }
+        }
+        int top1=0;
+        for(int i = 0;i<sum_index.size();i++){
+            if(sum_index[i]>sum_index[top1])top1=i;
+        }
+        int top2 = -1;
+
+        for(int i = 0; i < sum_index.size(); i++){
+            int diff = abs(i - top1);
+            diff = min(diff, 180 - diff);
+            if(diff < min_diff_between_top1_top2) continue;
+            if(top2 == -1 || sum_index[i] > sum_index[top2])top2 = i;
+        }
+        double top1inRad = top1 * (CV_PI/180);
+        double top2inRad = top2 * (CV_PI/180);
+        for(int i = 0;i<angles.size();i++){
+            if(length[i]<min_line_long*min_line_long)continue;
+            double diff = abs(top1inRad-angles[i]);
+            diff = min(diff,CV_PI-diff);
+            if(diff<=max_remoteness_from_angle){
+                linesA.push_back(lines[i]);
+            }
+            else{
+                diff = abs(top2inRad-angles[i]);
+                diff = min(diff,CV_PI-diff);
+                if(diff<=max_remoteness_from_angle){
+                    linesB.push_back(lines[i]);
+                }
+            }
+        }
+
+        cout<<"Top1: "<<top1<<'\n';
+        cout<<"Top2: "<<top2<<'\n';
+        cout<<"LinesA: "<<linesA.size()<<'\n';
+        cout<<"LinesB: "<<linesB.size()<<'\n';
+    }
     void cluster_intersection(){
         clusters.clear();
         for(const auto &p:intersection){
@@ -222,7 +272,7 @@ class RANSAC_for_line{
 int main() {
  srand(time(nullptr)); 
  cv::Mat im;
- im = cv::imread(R"(E:\BP\bachelor's thesis\chess board detection\img\chessboard_1792850830789002000.jpg)");
+ im = cv::imread(R"(E:\BP\bachelor's thesis\chess board detection\img\chessboard_1792850908744638000.jpg)");
  if(im.empty()){
     cout<<"cannot find image";
     return 1;
