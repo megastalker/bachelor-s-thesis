@@ -20,12 +20,14 @@ class RANSAC_for_chessboard{
     vector<cv::Point2f> intersection;
     vector<cv::Vec4f> linesA;
     vector<cv::Vec4f> linesB;
+    vector<cv::Point2f> idealGrid;
     double threshold;
     double min_line_long = 40;
     double radius = 15;
     int max_angle_for_direction = 5;
     double max_remoteness_from_angle = 17 *(CV_PI/180);
-    double min_diff_between_top1_top2=40;
+    int min_diff_between_top1_top2=40;
+    const vector<cv::Point2f> idealCorners = {{0,0},{8, 0},{8, 8},{0, 8}};
     public:
     struct cluster
     {
@@ -33,6 +35,7 @@ class RANSAC_for_chessboard{
         int count=0;
     };
     vector<cluster> clusters;
+    vector<cv::Point2f> filtrated;
     int min_count=10;
     RANSAC_for_chessboard(vector<cv::Vec4f> &lines, double threshold = 5): lines(lines),threshold(threshold){
         if(threshold < 0)cout<<"error trashold < 0";
@@ -80,6 +83,7 @@ class RANSAC_for_chessboard{
         }
         cout<<intersection.size();
         cluster_intersection();
+        RANSAC();
     }
 
 
@@ -133,6 +137,7 @@ class RANSAC_for_chessboard{
         cout<<"LinesB: "<<linesB.size()<<'\n';
     }
     void cluster_intersection(){
+        filtrated.clear();
         clusters.clear();
         for(const auto &p:intersection){
             if(clusters.empty()){
@@ -159,13 +164,71 @@ class RANSAC_for_chessboard{
             
         }
         cout<<" "<<clusters.size();
-
+        filtrated.reserve(clusters.size()/10);
         for(const auto &c:clusters){
-            if(c.count>=min_count)
+            if(c.count>=min_count){
             cv::circle(m,c.center,15,cv::Scalar(255,255,0),-1);
+            filtrated.push_back(c.center);}
         }
+        cout<<"ff"<<filtrated.size();
+
+    }
+    void RANSAC(){
+       idealGrid.clear();
+        idealGrid.reserve(81);
+        for(int i=0;i<=8;i++){
+            for(int j=0;j<=8;j++){
+                idealGrid.push_back(cv::Point2f(i,j));
+            }
+        }
+        vector<cv::Point2f> best(4);
+        vector<cv::Point2f> p(4);
+        int bestScore = 0;
+        for(int i = 0;i<100000;i++){
+            p[0]=filtrated[rand()% filtrated.size()];
+            p[1]=filtrated[rand()% filtrated.size()];
+            if(p[0]==p[1])continue;
+            p[2]=filtrated[rand()% filtrated.size()];
+            if(p[1]==p[2])continue;
+            p[3]=filtrated[rand()% filtrated.size()];
+            if(p[2]==p[3])continue;
+            int sc = score(p);
+            if(sc>bestScore){
+                bestScore = sc;
+                best = p;
+            }
+        }
+        cout<<"\nscore = "<< bestScore;
+        if(best.size() == 4){
+    for(int i = 0; i < 4; i++){
+        cv::line(
+            m,
+            best[i],
+            best[(i+1)%4],
+            cv::Scalar(0,255,255),
+            10
+        );
+    }
+}
+        
     }
 
+    int score(const vector<cv::Point2f> &Corners){
+        if(Corners.size()!=4)return 0;
+        int score = 0;
+        cv::Mat Homo = cv::getPerspectiveTransform(idealCorners,Corners);
+        vector<cv::Point2f> transformedGrid;
+        cv::perspectiveTransform(idealGrid, transformedGrid, Homo);
+        for(auto &t: transformedGrid){
+            for(auto &p:filtrated){
+                if((p.x-t.x)*(p.x-t.x)+(p.y-t.y)*(p.y-t.y)<threshold*threshold){
+                    score++;
+                    break;
+                }
+            }
+        }
+        return score;
+    }
 
 
 };
